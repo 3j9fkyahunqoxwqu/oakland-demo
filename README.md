@@ -30,5 +30,15 @@ on OSX:
 
 ## Usage
 ```
-  python cookie_extracter.py [listening interface]
+  python cookie_extracter.py [-h] -i [listening interface] -a [IP address] -p [Port]
+```
+If you use WiFi Pineapple, use 172.16.42.1 and 8000 as IP address and port.
+
+Otherwise, use the outgoing interface(ex. eth0), its IP address, and a port(ex. 3000)
+
+
+## Example
+Incoming on `wlan0`(10.42.0.1) and outgoing on `eth0`(192.168.1.10):
+```
+  python cookie_extracter.py -i eth0 -a 192.168.1.10 -p 3000
 ```
